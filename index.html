@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador + Zoom Mouse + Validación Excel</title>
+    
+    <!-- Librerías -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- SheetJS para leer Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #059669;
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --text-main: #1f2937;
+            --border: #e5e7eb;
+            --selected: #dbeafe;
+            --selected-border: #2563eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Header */
+        header { background: var(--bg-card); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); z-index: 10; }
+        h1 { font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+
+        /* Layout */
+        main { display: flex; flex: 1; overflow: hidden; }
+
+        /* Sidebar */
+        aside {
+            width: 400px; background: var(--bg-card); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; padding: 1.5rem; overflow-y: auto; flex-shrink: 0; z-index: 5;
+        }
+        .panel-section { margin-bottom: 2rem; }
+        .panel-title { font-size: 0.8rem; text-transform: uppercase; color: #6b7280; margin-bottom: 0.8rem; font-weight: 700; }
+
+        /* Upload Areas */
+        .upload-box {
+            border: 2px dashed var(--border); border-radius: 0.5rem; padding: 1.5rem;
+            text-align: center; cursor: pointer; transition: all 0.2s; position: relative; margin-bottom: 1rem;
+        }
+        .upload-box:hover { border-color: var(--primary); background-color: #eff6ff; }
+        .upload-box input { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
+
+        /* Controls */
+        .control-group { background: #fff; padding: 1rem; border: 1px solid var(--primary); border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .form-input { width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; margin-bottom: 0.75rem; font-size: 0.9rem; }
+        
+        .btn-primary { width: 100%; background: var(--primary); color: white; border: none; padding: 0.6rem; border-radius: 0.375rem; font-weight: 500; cursor: pointer; }
+        .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        .btn-download-all { width: 100%; background: var(--success); color: white; border: none; padding: 0.8rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; margin-top: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+
+        /* Invoice List */
+        #invoice-list { display: flex; flex-direction: column; gap: 0.75rem; }
+        .invoice-card { background: var(--bg-body); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; }
+        .invoice-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .invoice-name { font-weight: 600; }
+        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: white; }
+        .btn-sm:hover { background: #f3f4f6; }
+
+        /* Workspace Grid */
+        .workspace { flex: 1; padding: 2rem; overflow-y: auto; background-color: #e5e5f7; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; position: relative; }
+        #pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1.5rem; padding-bottom: 100px; }
+        .page-card { background: white; padding: 0.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; border: 2px solid transparent; user-select: none; transition: all 0.2s; }
+        .page-card:hover { transform: translateY(-3px); border-color: #93c5fd; }
+        .page-card.selected { border-color: var(--selected-border); background-color: var(--selected); }
+        .page-card canvas { width: 100%; height: auto; display: block; pointer-events: none; }
+        .page-number { text-align: center; margin-top: 0.5rem; font-size: 0.8rem; font-weight: 600; }
+
+        /* --- MODAL MEJORADO (Zoom/Pan/Excel) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9); z-index: 100;
+            display: none; flex-direction: column;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-toolbar {
+            height: 60px; background: #111827; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; color: white; flex-shrink: 0;
+        }
+
+        .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 1rem; }
+
+        /* Visor PDF - Contenedor transformado */
+        .modal-viewer {
+            flex: 1; position: relative; background: #374151; overflow: hidden; /* Hidden porque usamos transform manual */
+            cursor: grab;
+        }
+        .modal-viewer.grabbing { cursor: grabbing; }
+
+        /* El wrapper del canvas que se mueve */
+        #pdf-wrapper {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform-origin: center center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: transform 0.1s linear; /* Suavizado */
+        }
+
+        #preview-canvas { display: block; background: white; }
+
+        /* Panel de Validación Excel (Derecha) */
+        .validation-panel {
+            position: absolute; right: 0; top: 0; bottom: 0; width: 300px;
+            background: white; box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+            transform: translateX(100%); transition: transform 0.3s ease;
+            z-index: 10; display: flex; flex-direction: column;
+        }
+        .validation-panel.open { transform: translateX(0); }
+        
+        .validation-header { padding: 1rem; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .validation-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+        
+        .alta-item {
+            padding: 0.6rem; border-bottom: 1px solid #f3f4f6; cursor: pointer;
+            display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .alta-item:hover { background: #f9fafb; }
+        .alta-item.checked { background: #d1fae5; color: #065f46; text-decoration: line-through; opacity: 0.7; }
+        .alta-check { width: 16px; height: 16px; border: 1px solid #9ca3af; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+        .alta-item.checked .alta-check { background: var(--success); border-color: var(--success); }
+        .alta-item.checked .alta-check::after { content: '✓'; color: white; font-size: 10px; }
+
+        /* Botones y utilidades */
+        .nav-btn { background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
+        .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+        
+        .btn-modal-sel { padding: 0.4rem 1rem; border-radius: 4px; border: none; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        .btn-modal-sel.checked { background: var(--success); color: white; }
+        .btn-modal-sel.unchecked { background: #4b5563; color: white; }
+
+        .zoom-info { font-variant-numeric: tabular-nums; font-size: 0.9rem; min-width: 60px; }
+
+        .close-modal { background: none; border: none; color: white; font-size: 1.8rem; cursor: pointer; line-height: 1; }
+        
+        /* Loader */
+        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; display: none; z-index: 5; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🔍 Organizador & Validador</h1>
+    <div style="font-size: 0.9rem; color: #6b7280;">Zoom: Rueda Mouse | Mover: Clic + Arrastrar</div>
+</header>
+
+<main>
+    <aside>
+        <!-- 1. Cargar PDF -->
+        <div class="panel-section">
+            <div class="panel-title">1. Archivo PDF (Imágenes)</div>
+            <div class="upload-box" id="drop-pdf">
+                <input type="file" id="file-pdf" accept="application/pdf">
+                <span style="font-size:1.5rem;">📄</span><br>Subir PDF
+            </div>
+        </div>
+
+        <!-- 2. Cargar Excel (Validación) -->
+        <div class="panel-section">
+            <div class="panel-title">2. Lista de Altas (Excel)</div>
+            <div class="upload-box" id="drop-excel" style="border-color: var(--success);">
+                <input type="file" id="file-excel" accept=".xlsx, .xls">
+                <span style="font-size:1.5rem;">📊</span><br>Subir Excel
+            </div>
+            <div id="excel-status" style="font-size:0.8rem; color:#6b7280; text-align:center;"></div>
+        </div>
+
+        <!-- 3. Agrupar -->
+        <div class="panel-section">
+            <div class="panel-title">3. Crear Factura</div>
+            <div class="control-group">
+                <div class="selection-info" style="text-align: center;">Seleccionadas: <strong id="selected-count">0</strong></div>
+                <input type="text" id="invoice-name" class="form-input" placeholder="Nombre Factura">
+                <button id="btn-group" class="btn-primary" disabled>Agrupar</button>
+            </div>
+        </div>
+
+        <!-- 4. Lista y Descarga -->
+        <div class="panel-section" style="flex: 1;">
+            <div class="panel-title">4. Resultados</div>
+            <div id="invoice-list"></div>
+            <button id="btn-download-all" class="btn-download-all" disabled onclick="downloadAllAsZip()">📦 Descargar ZIP</button>
+        </div>
+    </aside>
+
+    <!-- Grid -->
+    <div class="workspace">
+        <div id="pages-grid"></div>
+    </div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+    <div class="modal-toolbar">
+        <div class="toolbar-left">
+            <button class="nav-btn" id="btn-prev" onclick="changePage(-1)">❮</button>
+            <span id="modal-page-title">Página 1</span>
+            <button class="nav-btn" id="btn-next" onclick="changePage(1)">❯</button>
+            
+            <button class="btn-sm" style="margin-left: 10px; background: transparent; color: white; border: 1px solid #4b5563;" onclick="toggleValidationPanel()">
+                📋 Lista Altas
+            </button>
+        </div>
+        
+        <div class="toolbar-right">
+            <button id="modal-sel-btn" class="btn-modal-sel unchecked" onclick="toggleSelectionFromModal()">✅ Seleccionar</button>
+            
+            <div style="background: #374151; padding: 4px 8px; border-radius: 4px; display: flex; align-items: center; gap: 5px;">
+                <button class="btn-sm" style="background:transparent; border:none; color:white; padding:0;" onclick="manualZoom(-0.2)">-</button>
+                <span class="zoom-info" id="zoom-val">100%</span>
+                <button class="btn-sm" style="background:transparent; border:none; color:white; padding:0;" onclick="manualZoom(0.2)">+</button>
+                <button class="btn-sm" style="background:transparent; border:none; color:#aaa; font-size:0.7rem; padding:0;" onclick="resetZoom()" title="Ajustar">Fit</button>
+            </div>
+
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+        </div>
+    </div>
+    
+    <div class="modal-viewer" id="viewer-container">
+        <div class="loader" id="modal-loader"></div>
+        
+        <!-- Wrapper que se transforma -->
+        <div id="pdf-wrapper">
+            <canvas id="preview-canvas"></canvas>
+        </div>
+
+        <!-- Panel Lateral de Validación -->
+        <div class="validation-panel" id="validation-panel">
+            <div class="validation-header">
+                <span>Validación Altas</span>
+                <button class="close-modal" onclick="toggleValidationPanel()" style="font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="validation-list" id="alta-list">
+                <div style="padding:1rem; text-align:center; color:#999; font-size:0.85rem;">Sube un Excel para ver la lista aquí.</div>
+            </div>
+            <div style="padding:0.5rem; text-align:center; font-size:0.75rem; color:#999; border-top:1px solid #eee;">
+                Clic en ítem para marcar/desmarcar
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. CONFIGURACIÓN INICIAL ---
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    const state = {
+        pdfDoc: null, pdfBytes: null, pdfScale: 2.0, // Calidad base del canvas renderizado
+        totalPages: 0, selectedPages: new Set(), groups: [],
+        currentIndex: 0,
+        
+        // Zoom & Pan State
+        scale: 1,       // Escala visual actual (CSS)
+        panning: false,
+        pointX: 0, pointY: 0,
+        startX: 0, startY: 0,
+        translateX: 0, translateY: 0,
+
+        // Excel State
+        altas: [] // { value: string, checked: boolean }
+    };
+
+    // DOM
+    const filePdf = document.getElementById('file-pdf');
+    const fileExcel = document.getElementById('file-excel');
+    const modal = document.getElementById('modal');
+    const wrapper = document.getElementById('pdf-wrapper');
+    const viewer = document.getElementById('viewer-container');
+    const canvas = document.getElementById('preview-canvas');
+
+    // --- 2. CARGA DE ARCHIVOS ---
+
+    // PDF
+    filePdf.onchange = (e) => {
+        if(e.target.files.length) loadPdf(e.target.files[0]);
+    };
+    document.getElementById('drop-pdf').ondrop = (e) => {
+        e.preventDefault(); if(e.dataTransfer.files.length) loadPdf(e.dataTransfer.files[0]);
+    };
+
+    async function loadPdf(file) {
+        const buffer = await file.arrayBuffer();
+        state.pdfBytes = buffer;
+        const loadingTask = pdfjsLib.getDocument(buffer);
+        state.pdfDoc = await loadingTask.promise;
+        state.totalPages = state.pdfDoc.numPages;
+        document.querySelector('h1 span')?.remove(); // limpiar icono si hubo
+        showToast(`${state.totalPages} páginas cargadas.`);
+        renderGrid();
+    }
+
+    // Excel (Validación)
+    fileExcel.onchange = (e) => {
+        if(e.target.files.length) loadExcel(e.target.files[0]);
+    };
+
+    function loadExcel(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            // Leemos la primera columna (A) asumiendo que ahí están los números de Alta
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+            
+            // Aplanar y limpiar
+            state.altas = jsonData.flat()
+                .filter(cell => cell !== undefined && cell !== null && String(cell).trim() !== "")
+                .map(val => ({ value: String(val).trim(), checked: false }));
+            
+            document.getElementById('excel-status').textContent = `${state.altas.length} Altas cargadas.`;
+            renderAltaList();
+            showToast('Excel cargado. Revisa la lista en el visor.');
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // --- 3. GRID DE MINIATURAS ---
+
+    async function renderGrid() {
+        const grid = document.getElementById('pages-grid');
+        grid.innerHTML = '';
+        const frag = document.createDocumentFragment();
+
+        for(let i=1; i<=state.totalPages; i++) {
+            const page = await state.pdfDoc.getPage(i);
+            const vp = page.getViewport({scale: 0.3}); // Miniaturas muy pequeñas
+            const c = document.createElement('canvas');
+            c.height = vp.height; c.width = vp.width;
+            await page.render({canvasContext:c.getContext('2d'), viewport:vp}).promise;
+
+            const div = document.createElement('div');
+            div.className = 'page-card';
+            div.dataset.idx = i-1;
+            div.onclick = () => openModal(i-1);
+            div.innerHTML = `<div style="width:100%"><canvas style="width:100%"></canvas></div><div class="page-number">Pág ${i}</div>`;
+            div.querySelector('canvas').replaceWith(c);
+            frag.appendChild(div);
+        }
+        grid.appendChild(frag);
+    }
+
+    // --- 4. VISOR MODAL (ZOOM/PAN/RENDER) ---
+
+    async function openModal(idx) {
+        state.currentIndex = idx;
+        modal.classList.add('active');
+        document.getElementById('modal-loader').style.display = 'block';
+        canvas.style.display = 'none';
+        
+        // Renderizar página ALTA RESOLUCIÓN una sola vez
+        const page = await state.pdfDoc.getPage(idx + 1);
+        const vp = page.getViewport({scale: state.pdfScale}); // Escala 2.0 para nitidez
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        
+        await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
+        
+        document.getElementById('modal-loader').style.display = 'none';
+        canvas.style.display = 'block';
+        
+        // Resetear vista
+        resetZoom();
+        updateModalUI();
+    }
+
+    function closeModal() {
+        modal.classList.remove('active');
+        updateGridVisuals();
+    }
+
+    function changePage(delta) {
+        const newIdx = state.currentIndex + delta;
+        if(newIdx >=0 && newIdx < state.totalPages) {
+            openModal(newIdx);
+        }
+    }
+
+    function updateModalUI() {
+        document.getElementById('btn-prev').disabled = state.currentIndex <= 0;
+        document.getElementById('btn-next').disabled = state.currentIndex >= state.totalPages - 1;
+        document.getElementById('modal-page-title').textContent = `Página ${state.currentIndex + 1} / ${state.totalPages}`;
+        
+        const selBtn = document.getElementById('modal-sel-btn');
+        const isSelected = state.selectedPages.has(state.currentIndex);
+        selBtn.className = `btn-modal-sel ${isSelected ? 'checked' : 'unchecked'}`;
+        selBtn.textContent = isSelected ? '✅ Seleccionada' : '⬜ Seleccionar';
+    }
+
+    // --- 5. ZOOM & PAN (CSS TRANSFORM) ---
+    
+    function updateTransform() {
+        // Aplicar traslación y escala visual al wrapper
+        wrapper.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
+        document.getElementById('zoom-val').textContent = Math.round(state.scale * 100) + '%';
+    }
+
+    function resetZoom() {
+        state.scale = 0.8; // Empieza un poco alejado
+        state.translateX = -canvas.width / 2; // Centrar (el wrapper está en top 50% left 50%)
+        state.translateY = -canvas.height / 2;
+        updateTransform();
+    }
+
+    function manualZoom(delta) {
+        let newScale = state.scale + delta;
+        if(newScale < 0.1) newScale = 0.1;
+        if(newScale > 5) newScale = 5;
+        state.scale = newScale;
+        updateTransform();
+    }
+
+    // Eventos del Mouse para Zoom y Pan
+    viewer.addEventListener('wheel', (e) => {
+        if(e.ctrlKey) return; // Permitir zoom nativo del navegador si se desea ctrl
+        
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        let newScale = state.scale + delta;
+        if(newScale < 0.1) newScale = 0.1;
+        if(newScale > 5) newScale = 5;
+        
+        state.scale = newScale;
+        updateTransform();
+    }, { passive: false });
+
+    viewer.addEventListener('mousedown', (e) => {
+        if(e.target.closest('.validation-panel')) return; // No arrastrar si clic en lista excel
+        state.panning = true;
+        state.startX = e.clientX - state.translateX;
+        state.startY = e.clientY - state.translateY;
+        viewer.classList.add('grabbing');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if(!state.panning) return;
+        e.preventDefault();
+        state.translateX = e.clientX - state.startX;
+        state.translateY = e.clientY - state.startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        state.panning = false;
+        viewer.classList.remove('grabbing');
+    });
+
+    // --- 6. LÓGICA DE VALIDACIÓN (EXCEL) ---
+
+    function renderAltaList() {
+        const list = document.getElementById('alta-list');
+        list.innerHTML = '';
+        if(!state.altas.length) {
+            list.innerHTML = '<div style="padding:1rem; text-align:center; color:#999;">Vacío</div>';
+            return;
+        }
+        state.altas.forEach((alta, idx) => {
+            const div = document.createElement('div');
+            div.className = `alta-item ${alta.checked ? 'checked' : ''}`;
+            div.onclick = () => toggleAlta(idx);
+            div.innerHTML = `
+                <div class="alta-check"></div>
+                <span>${alta.value}</span>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function toggleAlta(idx) {
+        state.altas[idx].checked = !state.altas[idx].checked;
+        renderAltaList();
+    }
+
+    function toggleValidationPanel() {
+        document.getElementById('validation-panel').classList.toggle('open');
+    }
+
+    // --- 7. LÓGICA DE GRUPOS (IGUAL QUE ANTES) ---
+
+    function toggleSelectionFromModal() {
+        const idx = state.currentIndex;
+        if(state.selectedPages.has(idx)) state.selectedPages.delete(idx);
+        else state.selectedPages.add(idx);
+        
+        updateModalUI();
+        document.getElementById('selected-count').textContent = state.selectedPages.size;
+        document.getElementById('btn-group').disabled = state.selectedPages.size === 0;
+        updateGridVisuals();
+    }
+
+    function updateGridVisuals() {
+        document.querySelectorAll('.page-card').forEach(c => {
+            c.classList.toggle('selected', state.selectedPages.has(parseInt(c.dataset.idx)));
+        });
+    }
+
+    document.getElementById('btn-group').onclick = createGroup;
+
+    function createGroup() {
+        const name = document.getElementById('invoice-name').value.trim() || `Factura ${state.groups.length+1}`;
+        const pages = Array.from(state.selectedPages).sort((a,b)=>a-b);
+        state.groups.push({ id: Date.now(), name, pages });
+        state.selectedPages.clear();
+        document.getElementById('invoice-name').value = '';
+        document.getElementById('selected-count').textContent = '0';
+        document.getElementById('btn-group').disabled = true;
+        renderGroupList();
+        if(modal.classList.contains('active')) updateModalUI();
+        showToast('Grupo creado');
+        updateGridVisuals();
+    }
+
+    function renderGroupList() {
+        const l = document.getElementById('invoice-list');
+        l.innerHTML = '';
+        state.groups.forEach(g => {
+            const d = document.createElement('div');
+            d.className = 'invoice-card';
+            d.innerHTML = `
+                <div class="invoice-header"><b>${g.name}</b> <span class="btn-sm" style="color:red;" onclick="delGroup(${g.id})">×</span></div>
+                <div style="font-size:0.8rem; color:#666;">Págs: ${g.pages.map(x=>x+1).join(', ')}</div>
+                <button class="btn-sm" style="width:100%; margin-top:5px;" onclick="downOne(${g.id})">📥 Descargar</button>
+            `;
+            l.appendChild(d);
+        });
+        document.getElementById('btn-download-all').disabled = state.groups.length === 0;
+    }
+
+    function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
+
+    async function downOne(id) {
+        const g = state.groups.find(x=>x.id===id);
+        const {PDFDocument} = PDFLib;
+        const doc = await PDFDocument.create();
+        const src = await PDFDocument.load(state.pdfBytes);
+        const c = await doc.copyPages(src, g.pages);
+        c.forEach(p=>doc.addPage(p));
+        const b = await doc.save();
+        const blob = new Blob([b], {type:'application/pdf'});
+        const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${g.name}.pdf`; a.click();
+    }
+
+    async function downloadAllAsZip() {
+        const zip = new JSZip();
+        const {PDFDocument} = PDFLib;
+        const src = await PDFDocument.load(state.pdfBytes);
+        for(const g of state.groups) {
+            const doc = await PDFDocument.create();
+            const c = await doc.copyPages(src, g.pages);
+            c.forEach(p=>doc.addPage(p));
+            zip.file(`${g.name}.pdf`, await doc.save());
+        }
+        const content = await zip.generateAsync({type:"blob"});
+        const a = document.createElement('a'); a.href=URL.createObjectURL(content); a.download='Facturas.zip'; a.click();
+    }
+
+    function showToast(msg) {
+        const t = document.createElement('div');
+        t.style.cssText = "position:fixed; bottom:20px; right:20px; background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:999; animation: fadein 0.5s;";
+        t.textContent = msg; document.body.appendChild(t);
+        setTimeout(()=>t.remove(), 3000);
+    }
+</script>
+</body>
+</html>
