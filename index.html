@@ -359,7 +359,7 @@
     }
     function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
 
-    // 7. Descargas ROBUSTAS con Alertas de Error
+    // 7. Descargas CORREGIDAS (Aplicando fix de Detached ArrayBuffer)
     
     // Función helper segura para descargar
     function forceDownload(blob, filename) {
@@ -371,8 +371,12 @@
             a.download = filename;
             document.body.appendChild(a);
             a.click();
-            window.URL.revokeObjectURL(url);
-            setTimeout(() => { document.body.removeChild(a); }, 100);
+            
+            // Revocamos la URL después de un pequeño delay para asegurar que el navegador inicie la descarga
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
         } catch (e) {
             throw new Error("Error al forzar descarga en navegador: " + e.message);
         }
@@ -392,8 +396,13 @@
             const c = await doc.copyPages(src, g.pages);
             c.forEach(p=>doc.addPage(p));
             
-            const pdfBytes = await doc.save();
-            const blob = new Blob([pdfBytes], {type: 'application/pdf'});
+            // --- INICIO CORRECCIÓN ---
+            const pdfBytes = await doc.save(); // Uint8Array
+            // Creamos una copia segura para evitar el error "detached ArrayBuffer"
+            const pdfBytesCopy = pdfBytes.slice(); 
+            // --- FIN CORRECCIÓN ---
+
+            const blob = new Blob([pdfBytesCopy], {type: 'application/pdf'});
             
             forceDownload(blob, `${g.name}.pdf`);
             showToast('Descargando...');
@@ -415,15 +424,23 @@
 
             const zip = new JSZip();
             const {PDFDocument} = PDFLib;
+            
+            // Cargamos el documento fuente FUERA del bucle para eficiencia
             const src = await PDFDocument.load(state.pdfBytes);
             
             for(const g of state.groups) {
                 const doc = await PDFDocument.create();
                 const c = await doc.copyPages(src, g.pages);
                 c.forEach(p=>doc.addPage(p));
+                
+                // --- INICIO CORRECCIÓN ---
                 const pdfBytes = await doc.save();
+                // Clonamos los datos antes de agregarlos al ZIP para evitar errores de memoria
+                const pdfBytesCopy = pdfBytes.slice();
+                // --- FIN CORRECCIÓN ---
+
                 const safeName = g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim();
-                zip.file(`${safeName}.pdf`, pdfBytes);
+                zip.file(`${safeName}.pdf`, pdfBytesCopy);
             }
             
             const content = await zip.generateAsync({type:"blob"});
