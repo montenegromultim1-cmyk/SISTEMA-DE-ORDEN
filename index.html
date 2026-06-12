@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador PDF - Descarga Arreglada</title>
+    <title>Organizador PDF - Debug Mode</title>
     
-    <!-- Librerías necesarias (CDN confiables) -->
+    <!-- Librerías desde CDNJS (Más estables) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
@@ -25,14 +25,11 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* Header */
         header { background: var(--bg-card); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); z-index: 10; }
         h1 { font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
 
-        /* Layout */
         main { display: flex; flex: 1; overflow: hidden; }
 
-        /* Sidebar */
         aside {
             width: 350px; background: var(--bg-card); border-right: 1px solid var(--border);
             display: flex; flex-direction: column; padding: 1.5rem; overflow-y: auto; flex-shrink: 0; z-index: 5;
@@ -40,7 +37,6 @@
         .panel-section { margin-bottom: 2rem; }
         .panel-title { font-size: 0.8rem; text-transform: uppercase; color: #6b7280; margin-bottom: 0.8rem; font-weight: 700; }
 
-        /* Upload Area */
         .upload-box {
             border: 2px dashed var(--border); border-radius: 0.5rem; padding: 2rem;
             text-align: center; cursor: pointer; transition: all 0.2s; position: relative; margin-bottom: 1rem;
@@ -48,7 +44,6 @@
         .upload-box:hover { border-color: var(--primary); background-color: #eff6ff; }
         .upload-box input { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
 
-        /* Controls */
         .control-group { background: #fff; padding: 1rem; border: 1px solid var(--primary); border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .form-input { width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; margin-bottom: 0.75rem; font-size: 0.9rem; }
         
@@ -57,7 +52,6 @@
 
         .btn-download-all { width: 100%; background: var(--success); color: white; border: none; padding: 0.8rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; margin-top: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
 
-        /* Invoice List */
         #invoice-list { display: flex; flex-direction: column; gap: 0.75rem; }
         .invoice-card { background: var(--bg-body); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; }
         .invoice-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
@@ -65,7 +59,6 @@
         .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: white; }
         .btn-sm:hover { background: #f3f4f6; }
 
-        /* Workspace Grid */
         .workspace { flex: 1; padding: 2rem; overflow-y: auto; background-color: #e5e5f7; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; position: relative; }
         #pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1.5rem; padding-bottom: 100px; }
         
@@ -76,24 +69,18 @@
         }
         .page-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); border-color: #93c5fd; }
         .page-card.selected { border-color: var(--selected-border); background-color: var(--selected); }
-        
         .page-card canvas { width: 100%; height: auto; display: block; pointer-events: none; border-bottom: 1px solid #eee; }
         .page-number { text-align: center; padding: 0.5rem; font-size: 0.8rem; font-weight: 600; color: #555; }
 
-        /* Botón Ojo */
         .eye-btn {
-            position: absolute; top: 8px; right: 8px;
-            width: 32px; height: 32px;
-            background: white;
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 10; cursor: pointer; opacity: 0.9;
+            position: absolute; top: 8px; right: 8px; width: 32px; height: 32px;
+            background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; cursor: pointer; opacity: 0.9;
         }
         .eye-btn:hover { transform: scale(1.1); opacity: 1; background: #f0f9ff; }
         .eye-btn svg { width: 18px; height: 18px; stroke: #374151; }
 
-        /* --- MODAL --- */
+        /* Modal */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.9); z-index: 100;
@@ -104,7 +91,6 @@
         .modal-toolbar {
             height: 60px; background: #111827; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; color: white; flex-shrink: 0;
         }
-
         .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 1rem; }
 
         .modal-viewer {
@@ -118,7 +104,6 @@
             box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             transition: transform 0.1s linear; 
         }
-
         #preview-canvas { display: block; background: white; }
 
         .nav-btn { background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
@@ -129,7 +114,6 @@
         .btn-modal-sel.unchecked { background: #4b5563; color: white; }
 
         .zoom-info { font-variant-numeric: tabular-nums; font-size: 0.9rem; min-width: 60px; }
-
         .close-modal { background: none; border: none; color: white; font-size: 1.8rem; cursor: pointer; line-height: 1; }
         
         .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; display: none; z-index: 5; }
@@ -141,12 +125,11 @@
 
 <header>
     <h1>📄 Organizador PDF</h1>
-    <div style="font-size: 0.9rem; color: #6b7280;">Zoom: Rueda | Mover: Arrastrar</div>
+    <div style="font-size: 0.9rem; color: #6b7280;">Debug Mode</div>
 </header>
 
 <main>
     <aside>
-        <!-- 1. Cargar PDF -->
         <div class="panel-section">
             <div class="panel-title">1. Archivo PDF</div>
             <div class="upload-box" id="drop-pdf">
@@ -155,7 +138,6 @@
             </div>
         </div>
 
-        <!-- 2. Agrupar -->
         <div class="panel-section">
             <div class="panel-title">2. Crear Factura</div>
             <div class="control-group">
@@ -165,7 +147,6 @@
             </div>
         </div>
 
-        <!-- 3. Lista y Descarga -->
         <div class="panel-section" style="flex: 1;">
             <div class="panel-title">3. Grupos</div>
             <div id="invoice-list"></div>
@@ -173,7 +154,6 @@
         </div>
     </aside>
 
-    <!-- Grid -->
     <div class="workspace">
         <div id="pages-grid"></div>
     </div>
@@ -190,14 +170,12 @@
         
         <div class="toolbar-right">
             <button id="modal-sel-btn" class="btn-modal-sel unchecked" onclick="toggleSelectionFromModal()">✅ Seleccionar</button>
-            
             <div style="background: #374151; padding: 4px 8px; border-radius: 4px; display: flex; align-items: center; gap: 5px;">
                 <button class="btn-sm" style="background:transparent; border:none; color:white; padding:0;" onclick="manualZoom(-0.2)">-</button>
                 <span class="zoom-info" id="zoom-val">100%</span>
                 <button class="btn-sm" style="background:transparent; border:none; color:white; padding:0;" onclick="manualZoom(0.2)">+</button>
                 <button class="btn-sm" style="background:transparent; border:none; color:#aaa; font-size:0.7rem; padding:0;" onclick="resetZoom()">Fit</button>
             </div>
-
             <button class="close-modal" onclick="closeModal()">&times;</button>
         </div>
     </div>
@@ -211,47 +189,34 @@
 </div>
 
 <script>
-    // --- 1. CONFIGURACIÓN ---
+    // 1. Configuración Worker PDF.js (Crucial)
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
     const state = {
         pdfDoc: null, pdfBytes: null, pdfScale: 2.0, 
         totalPages: 0, selectedPages: new Set(), groups: [],
         currentIndex: 0,
-        scale: 1, panning: false, pointX: 0, pointY: 0, startX: 0, startY: 0, translateX: 0, translateY: 0
+        scale: 1, panning: false, startX: 0, startY: 0, translateX: 0, translateY: 0
     };
 
-    // DOM
+    // DOM Refs
     const filePdf = document.getElementById('file-pdf');
     const modal = document.getElementById('modal');
     const wrapper = document.getElementById('pdf-wrapper');
     const viewer = document.getElementById('viewer-container');
     const canvas = document.getElementById('preview-canvas');
 
-    // --- 2. FUNCION DE DESCARGA ROBUSTA (FIX GITHUB PAGES) ---
-    // Esta función asegura que el enlace se adjunte al DOM antes de hacer clic,
-    // evitando bloqueos del navegador en sitios estáticos.
-    function forceDownload(blob, filename) {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        
-        // Importante: Adjuntar al cuerpo del documento
-        document.body.appendChild(a);
-        
-        a.click();
-        
-        // Limpieza
-        window.URL.revokeObjectURL(url);
-        setTimeout(() => {
-            document.body.removeChild(a);
-        }, 100);
-    }
+    // 2. Verificación de librerías al cargar
+    window.onload = function() {
+        if (typeof PDFLib === 'undefined') {
+            alert("CRÍTICO: La librería PDF-lib no se cargó. Revisa tu conexión a internet o si usas un bloqueador de anuncios.");
+        }
+        if (typeof JSZip === 'undefined') {
+            alert("CRÍTICO: La librería JSZip no se cargó.");
+        }
+    };
 
-    // --- 3. CARGA PDF ---
-
+    // 3. Carga PDF
     filePdf.onchange = (e) => { if(e.target.files.length) loadPdf(e.target.files[0]); };
     document.getElementById('drop-pdf').ondrop = (e) => {
         e.preventDefault(); if(e.dataTransfer.files.length) loadPdf(e.dataTransfer.files[0]);
@@ -268,13 +233,11 @@
             showToast(`${state.totalPages} páginas cargadas.`);
             renderGrid();
         } catch (err) {
-            console.error(err);
-            showToast("Error al cargar PDF");
+            alert("Error al leer el archivo PDF: " + err.message);
         }
     }
 
-    // --- 4. GRID (MINIATURAS) ---
-
+    // 4. Render Grid
     async function renderGrid() {
         const grid = document.getElementById('pages-grid');
         grid.innerHTML = '';
@@ -291,14 +254,10 @@
             div.className = 'page-card';
             div.dataset.idx = i-1;
             
-            // Botón OJO
             const eyeBtn = document.createElement('div');
             eyeBtn.className = 'eye-btn';
             eyeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-            eyeBtn.onclick = (e) => {
-                e.stopPropagation();
-                openModal(i-1);
-            };
+            eyeBtn.onclick = (e) => { e.stopPropagation(); openModal(i-1); };
 
             const numDiv = document.createElement('div');
             numDiv.className = 'page-number';
@@ -307,8 +266,6 @@
             div.appendChild(eyeBtn);
             div.appendChild(c);
             div.appendChild(numDiv);
-            
-            // Click en el card selecciona
             div.onclick = () => toggleSelection(i-1);
 
             frag.appendChild(div);
@@ -317,41 +274,29 @@
         updateGridVisuals();
     }
 
-    // --- 5. LÓGICA VISOR MODAL (ZOOM/PAN) ---
-
+    // 5. Modal Logic
     async function openModal(idx) {
         state.currentIndex = idx;
         modal.classList.add('active');
         document.getElementById('modal-loader').style.display = 'block';
         canvas.style.display = 'none';
-        
         const page = await state.pdfDoc.getPage(idx + 1);
         const vp = page.getViewport({scale: state.pdfScale}); 
         canvas.width = vp.width; canvas.height = vp.height;
-        
         await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
-        
         document.getElementById('modal-loader').style.display = 'none';
         canvas.style.display = 'block';
         resetZoom();
         updateModalUI();
     }
 
-    function closeModal() {
-        modal.classList.remove('active');
-        updateGridVisuals();
-    }
-
-    function changePage(delta) {
-        const newIdx = state.currentIndex + delta;
-        if(newIdx >=0 && newIdx < state.totalPages) openModal(newIdx);
-    }
+    function closeModal() { modal.classList.remove('active'); updateGridVisuals(); }
+    function changePage(delta) { const newIdx = state.currentIndex + delta; if(newIdx >=0 && newIdx < state.totalPages) openModal(newIdx); }
 
     function updateModalUI() {
         document.getElementById('btn-prev').disabled = state.currentIndex <= 0;
         document.getElementById('btn-next').disabled = state.currentIndex >= state.totalPages - 1;
         document.getElementById('modal-page-title').textContent = `Página ${state.currentIndex + 1} / ${state.totalPages}`;
-        
         const btn = document.getElementById('modal-sel-btn');
         const sel = state.selectedPages.has(state.currentIndex);
         btn.className = `btn-modal-sel ${sel ? 'checked' : 'unchecked'}`;
@@ -363,69 +308,24 @@
         document.getElementById('zoom-val').textContent = Math.round(state.scale * 100) + '%';
     }
 
-    function resetZoom() {
-        state.scale = 0.8; 
-        state.translateX = -canvas.width / 2; 
-        state.translateY = -canvas.height / 2;
-        updateTransform();
-    }
+    function resetZoom() { state.scale = 0.8; state.translateX = -canvas.width / 2; state.translateY = -canvas.height / 2; updateTransform(); }
+    function manualZoom(delta) { let s = state.scale + delta; if(s < 0.1) s = 0.1; if(s > 5) s = 5; state.scale = s; updateTransform(); }
 
-    function manualZoom(delta) {
-        let s = state.scale + delta;
-        if(s < 0.1) s = 0.1; if(s > 5) s = 5;
-        state.scale = s; updateTransform();
-    }
+    viewer.addEventListener('wheel', (e) => { e.preventDefault(); const delta = e.deltaY > 0 ? -0.1 : 0.1; let s = state.scale + delta; if(s < 0.1) s = 0.1; if(s > 5) s = 5; state.scale = s; updateTransform(); }, { passive: false });
+    viewer.addEventListener('mousedown', (e) => { state.panning = true; state.startX = e.clientX - state.translateX; state.startY = e.clientY - state.translateY; viewer.classList.add('grabbing'); });
+    window.addEventListener('mousemove', (e) => { if(!state.panning) return; e.preventDefault(); state.translateX = e.clientX - state.startX; state.translateY = e.clientY - state.startY; updateTransform(); });
+    window.addEventListener('mouseup', () => { state.panning = false; viewer.classList.remove('grabbing'); });
 
-    viewer.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        let s = state.scale + delta;
-        if(s < 0.1) s = 0.1; if(s > 5) s = 5;
-        state.scale = s; updateTransform();
-    }, { passive: false });
-
-    viewer.addEventListener('mousedown', (e) => {
-        state.panning = true;
-        state.startX = e.clientX - state.translateX;
-        state.startY = e.clientY - state.translateY;
-        viewer.classList.add('grabbing');
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if(!state.panning) return;
-        e.preventDefault();
-        state.translateX = e.clientX - state.startX;
-        state.translateY = e.clientY - state.startY;
-        updateTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-        state.panning = false;
-        viewer.classList.remove('grabbing');
-    });
-
-    // --- 6. LÓGICA DE SELECCIÓN Y GRUPOS ---
-
+    // 6. Selection Logic
     function toggleSelection(idx) {
-        if(state.selectedPages.has(idx)) state.selectedPages.delete(idx);
-        else state.selectedPages.add(idx);
-        
+        if(state.selectedPages.has(idx)) state.selectedPages.delete(idx); else state.selectedPages.add(idx);
         document.getElementById('selected-count').textContent = state.selectedPages.size;
         document.getElementById('btn-group').disabled = state.selectedPages.size === 0;
         updateGridVisuals();
         if(modal.classList.contains('active')) updateModalUI();
     }
-
-    function toggleSelectionFromModal() {
-        toggleSelection(state.currentIndex);
-    }
-
-    function updateGridVisuals() {
-        document.querySelectorAll('.page-card').forEach(c => {
-            c.classList.toggle('selected', state.selectedPages.has(parseInt(c.dataset.idx)));
-        });
-    }
-
+    function toggleSelectionFromModal() { toggleSelection(state.currentIndex); }
+    function updateGridVisuals() { document.querySelectorAll('.page-card').forEach(c => { c.classList.toggle('selected', state.selectedPages.has(parseInt(c.dataset.idx))); }); }
     document.getElementById('btn-group').onclick = createGroup;
 
     function createGroup() {
@@ -457,13 +357,32 @@
         });
         document.getElementById('btn-download-all').disabled = state.groups.length === 0;
     }
-
     function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
 
-    // --- 7. DESCARGAS (CORREGIDAS) ---
+    // 7. Descargas ROBUSTAS con Alertas de Error
+    
+    // Función helper segura para descargar
+    function forceDownload(blob, filename) {
+        try {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            setTimeout(() => { document.body.removeChild(a); }, 100);
+        } catch (e) {
+            throw new Error("Error al forzar descarga en navegador: " + e.message);
+        }
+    }
 
     async function downOne(id) {
         try {
+            if (!state.pdfBytes) throw new Error("No hay PDF cargado en memoria.");
+            if (typeof PDFLib === 'undefined') throw new Error("Librería PDF-lib no disponible.");
+
             const g = state.groups.find(x=>x.id===id);
             if(!g) return;
 
@@ -476,22 +395,21 @@
             const pdfBytes = await doc.save();
             const blob = new Blob([pdfBytes], {type: 'application/pdf'});
             
-            // Usamos la función robusta
             forceDownload(blob, `${g.name}.pdf`);
-            showToast('Descargando PDF...');
+            showToast('Descargando...');
             
         } catch (error) {
             console.error(error);
-            showToast('Error al generar PDF individual');
+            alert("ERROR AL DESCARGAR PDF: " + error.message);
         }
     }
 
     async function downloadAllAsZip() {
         try {
             if(!state.groups.length) return;
+            if (typeof JSZip === 'undefined') throw new Error("Librería JSZip no disponible.");
             
             const btn = document.getElementById('btn-download-all');
-            const oldText = btn.innerHTML;
             btn.innerHTML = '⏳ Generando...';
             btn.disabled = true;
 
@@ -504,24 +422,20 @@
                 const c = await doc.copyPages(src, g.pages);
                 c.forEach(p=>doc.addPage(p));
                 const pdfBytes = await doc.save();
-                
-                // Limpiar nombre de archivo
                 const safeName = g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim();
                 zip.file(`${safeName}.pdf`, pdfBytes);
             }
             
             const content = await zip.generateAsync({type:"blob"});
-            
-            // Usamos la función robusta
             forceDownload(content, 'Facturas_Completas.zip');
             
-            showToast('ZIP descargado correctamente');
-            btn.innerHTML = oldText;
+            showToast('ZIP descargado');
+            btn.innerHTML = '📦 Descargar ZIP';
             btn.disabled = false;
             
         } catch (error) {
             console.error(error);
-            showToast('Error al generar ZIP');
+            alert("ERROR AL DESCARGAR ZIP: " + error.message);
             const btn = document.getElementById('btn-download-all');
             btn.innerHTML = '📦 Descargar ZIP';
             btn.disabled = false;
@@ -530,7 +444,7 @@
 
     function showToast(msg) {
         const t = document.createElement('div');
-        t.style.cssText = "position:fixed; bottom:20px; right:20px; background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:999; font-size:0.9rem;";
+        t.style.cssText = "position:fixed; bottom:20px; right:20px; background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:999;";
         t.textContent = msg; document.body.appendChild(t);
         setTimeout(()=>t.remove(), 3000);
     }
