@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador PDF - Versión 1.8</title>
+    <title>Organizador PDF - Versión 1.9 Gemini</title>
     
-    <!-- Librerías desde CDNJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -66,11 +65,14 @@
             background: white; padding: 0; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
             cursor: pointer; border: 2px solid transparent; user-select: none; transition: all 0.2s; 
             position: relative; overflow: hidden; 
+            /* ALTURA MÍNIMA VITAL PARA LA OPTIMIZACIÓN (Evita que colapse antes de cargar la imagen) */
+            min-height: 226px; 
+            display: flex; flex-direction: column; justify-content: space-between;
         }
         .page-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); border-color: #93c5fd; }
         .page-card.selected { border-color: var(--selected-border); background-color: var(--selected); }
-        .page-card canvas { width: 100%; height: auto; display: block; pointer-events: none; border-bottom: 1px solid #eee; }
-        .page-number { text-align: center; padding: 0.5rem; font-size: 0.8rem; font-weight: 600; color: #555; }
+        .page-card canvas { width: 100%; height: auto; display: block; pointer-events: none; border-bottom: 1px solid #eee; flex: 1; object-fit: contain; }
+        .page-number { text-align: center; padding: 0.5rem; font-size: 0.8rem; font-weight: 600; color: #555; background: white;}
 
         .eye-btn {
             position: absolute; top: 8px; right: 8px; width: 32px; height: 32px;
@@ -119,13 +121,16 @@
         .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; display: none; z-index: 5; }
         @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 
+        .lazy-loader-text {
+            color: #9ca3af; font-size: 0.85rem; margin: auto; text-align: center;
+        }
     </style>
 </head>
 <body>
 
 <header>
     <h1>📄 Organizador PDF</h1>
-    <div style="font-size: 0.9rem; color: #6b7280;">Versión 1.8</div>
+    <div style="font-size: 0.9rem; color: #6b7280; font-weight: 600;">Versión 1.9 Gemini</div>
 </header>
 
 <main>
@@ -159,7 +164,6 @@
     </div>
 </main>
 
-<!-- MODAL -->
 <div class="modal-overlay" id="modal">
     <div class="modal-toolbar">
         <div class="toolbar-left">
@@ -217,54 +221,113 @@
 
     async function loadPdf(file) {
         try {
+            document.getElementById('pages-grid').innerHTML = '<h3 style="grid-column: 1/-1; text-align:center; color:#555;">Procesando PDF, por favor espera...</h3>';
+            
             const buffer = await file.arrayBuffer();
-            state.pdfBytes = buffer.slice(0); 
-            const loadingTask = pdfjsLib.getDocument(state.pdfBytes);
+            
+            // SOLUCIÓN AL ERROR DE MEMORIA: Guardamos un Uint8Array original puro para PDF-lib
+            state.pdfBytes = new Uint8Array(buffer); 
+            
+            // Y pasamos a pdf.js una copia con .slice(0) para que su Worker no "desconecte" el buffer original
+            const loadingTask = pdfjsLib.getDocument(state.pdfBytes.slice(0));
+            
             state.pdfDoc = await loadingTask.promise;
             state.totalPages = state.pdfDoc.numPages;
             showToast(`${state.totalPages} páginas cargadas.`);
-            renderGrid();
+            
+            // Limpiamos selecciones previas si se sube otro archivo
+            state.selectedPages.clear();
+            document.getElementById('selected-count').textContent = '0';
+            document.getElementById('btn-group').disabled = true;
+
+            renderGridLazy(); // Llamamos a la nueva función de renderizado optimizado
         } catch (err) {
             console.error(err);
             alert("Error al leer el archivo PDF: " + err.message);
         }
     }
 
-    // 4. Render Grid
-    async function renderGrid() {
+    // --- OPTIMIZACIÓN VERSIÓN 1.9 (Lazy Loading para PDFs gigantes) ---
+    function renderGridLazy() {
         const grid = document.getElementById('pages-grid');
         grid.innerHTML = '';
         const frag = document.createDocumentFragment();
 
-        for(let i=1; i<=state.totalPages; i++) {
-            const page = await state.pdfDoc.getPage(i);
+        // Configuramos el IntersectionObserver para cargar las páginas a medida que se hace scroll
+        if (window.pageObserver) window.pageObserver.disconnect();
+        window.pageObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const div = entry.target;
+                    const idx = parseInt(div.dataset.idx);
+                    if (div.dataset.loaded === "false") {
+                        div.dataset.loaded = "true";
+                        renderSinglePageThumb(idx, div); // Renderiza solo si entra en pantalla
+                    }
+                }
+            });
+        }, { rootMargin: '300px' }); // Empieza a cargar 300px antes de que aparezcan
+
+        // Creamos la "estructura vacía" de todas las páginas de golpe (es súper rápido)
+        for(let i = 1; i <= state.totalPages; i++) {
+            const div = document.createElement('div');
+            div.className = 'page-card';
+            div.dataset.idx = i - 1;
+            div.dataset.loaded = "false";
+            
+            // Indicador de carga temporal
+            const loadText = document.createElement('div');
+            loadText.className = 'lazy-loader-text';
+            loadText.textContent = `Cargando Pág ${i}...`;
+            
+            const numDiv = document.createElement('div');
+            numDiv.className = 'page-number';
+            numDiv.textContent = `Pág ${i}`;
+            
+            div.appendChild(loadText);
+            div.appendChild(numDiv);
+            
+            window.pageObserver.observe(div);
+            frag.appendChild(div);
+        }
+        
+        grid.appendChild(frag);
+    }
+
+    // Renderiza una sola miniatura (Llamado por el IntersectionObserver)
+    async function renderSinglePageThumb(idx, container) {
+        try {
+            const pageNum = idx + 1;
+            const page = await state.pdfDoc.getPage(pageNum);
             const vp = page.getViewport({scale: 0.35}); 
             const c = document.createElement('canvas');
             c.height = vp.height; c.width = vp.width;
             await page.render({canvasContext:c.getContext('2d'), viewport:vp}).promise;
 
-            const div = document.createElement('div');
-            div.className = 'page-card';
-            div.dataset.idx = i-1;
-            
             const eyeBtn = document.createElement('div');
             eyeBtn.className = 'eye-btn';
             eyeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-            eyeBtn.onclick = (e) => { e.stopPropagation(); openModal(i-1); };
+            eyeBtn.onclick = (e) => { e.stopPropagation(); openModal(idx); };
 
             const numDiv = document.createElement('div');
             numDiv.className = 'page-number';
-            numDiv.textContent = `Pág ${i}`;
-            
-            div.appendChild(eyeBtn);
-            div.appendChild(c);
-            div.appendChild(numDiv);
-            div.onclick = () => toggleSelection(i-1);
+            numDiv.textContent = `Pág ${pageNum}`;
 
-            frag.appendChild(div);
+            // Limpiar contenido de carga y añadir canvas
+            container.innerHTML = ''; 
+            container.appendChild(eyeBtn);
+            container.appendChild(c);
+            container.appendChild(numDiv);
+            
+            container.onclick = () => toggleSelection(idx);
+
+            // Re-aplicar estado visual si estaba seleccionado antes
+            if(state.selectedPages.has(idx)) container.classList.add('selected');
+
+        } catch(e) {
+            console.error("Error al renderizar miniatura:", e);
+            container.innerHTML = `<div style="color:red; text-align:center; padding:20px; font-size:0.8rem;">Error al cargar</div>`;
         }
-        grid.appendChild(frag);
-        updateGridVisuals();
     }
 
     // 5. Modal Logic
@@ -283,7 +346,7 @@
         updateModalUI();
     }
 
-    function closeModal() { modal.classList.remove('active'); updateGridVisuals(); }
+    function closeModal() { modal.classList.remove('active'); }
     function changePage(delta) { const newIdx = state.currentIndex + delta; if(newIdx >=0 && newIdx < state.totalPages) openModal(newIdx); }
 
     function updateModalUI() {
@@ -314,24 +377,34 @@
         if(state.selectedPages.has(idx)) state.selectedPages.delete(idx); else state.selectedPages.add(idx);
         document.getElementById('selected-count').textContent = state.selectedPages.size;
         document.getElementById('btn-group').disabled = state.selectedPages.size === 0;
-        updateGridVisuals();
+        
+        // Actualizamos visualmente el div específico en lugar de recargar todos
+        const card = document.querySelector(`.page-card[data-idx="${idx}"]`);
+        if (card) card.classList.toggle('selected', state.selectedPages.has(idx));
+        
         if(modal.classList.contains('active')) updateModalUI();
     }
     function toggleSelectionFromModal() { toggleSelection(state.currentIndex); }
-    function updateGridVisuals() { document.querySelectorAll('.page-card').forEach(c => { c.classList.toggle('selected', state.selectedPages.has(parseInt(c.dataset.idx))); }); }
+    
     document.getElementById('btn-group').onclick = createGroup;
 
     function createGroup() {
         const name = document.getElementById('invoice-name').value.trim() || `Factura ${state.groups.length+1}`;
         const pages = Array.from(state.selectedPages).sort((a,b)=>a-b);
         state.groups.push({ id: Date.now(), name, pages });
+        
+        // Quitar clases selected visuales
+        state.selectedPages.forEach(idx => {
+            const card = document.querySelector(`.page-card[data-idx="${idx}"]`);
+            if (card) card.classList.remove('selected');
+        });
+        
         state.selectedPages.clear();
         document.getElementById('invoice-name').value = '';
         document.getElementById('selected-count').textContent = '0';
         document.getElementById('btn-group').disabled = true;
         renderGroupList();
         if(modal.classList.contains('active')) updateModalUI();
-        updateGridVisuals();
         showToast('Grupo creado');
     }
 
@@ -352,7 +425,7 @@
     }
     function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
 
-    // 7. Descargas VERSIÓN 1.8 (FIX ARRAY.FROM)
+    // 7. Descargas (FIX DETACHED ARRAYBUFFER Y FIX OUT-OF-MEMORY V1.9)
     
     function forceDownload(blob, filename) {
         try {
@@ -368,7 +441,7 @@
                 document.body.removeChild(a);
             }, 100);
         } catch (e) {
-            throw new Error("Error al forzar descarga en navegador: " + e.message);
+            throw new Error("Error al forzar descarga: " + e.message);
         }
     }
 
@@ -380,22 +453,19 @@
             const g = state.groups.find(x=>x.id===id);
             if(!g) return;
 
+            showToast('Generando PDF...');
+
             const {PDFDocument} = PDFLib;
             const doc = await PDFDocument.create();
             const src = await PDFDocument.load(state.pdfBytes);
             const c = await doc.copyPages(src, g.pages);
             c.forEach(p=>doc.addPage(p));
             
-            // --- FIX V1.8: Normalización de memoria con Array.from ---
-            const pdfBytes = await doc.save(); // Uint8Array
+            // ELIMINAMOS el Array.from destructivo. doc.save() ya nos devuelve un Uint8Array limpio
+            const pdfBytesOut = await doc.save(); 
             
-            // Convertimos a Array estándar y luego a Uint8Array nuevo.
-            // Esto fuerza una reasignación de memoria limpia.
-            const normalizedBytes = new Uint8Array(Array.from(pdfBytes));
-            
-            // Creamos el blob pasando el Uint8Array (vista), no el buffer directo
-            const blob = new Blob([normalizedBytes], {type: 'application/pdf'});
-            // ---------------------------------------------------------
+            // Lo pasamos directamente a un Blob (Envuelto en un Array [] como requiere la API de Blob)
+            const blob = new Blob([pdfBytesOut], {type: 'application/pdf'});
 
             forceDownload(blob, `${g.name}.pdf`);
             showToast('Descargando...');
@@ -425,12 +495,9 @@
                 const c = await doc.copyPages(src, g.pages);
                 c.forEach(p=>doc.addPage(p));
                 
-                const pdfBytes = await doc.save();
-
-                // --- FIX V1.8 ---
-                const normalizedBytes = new Uint8Array(Array.from(pdfBytes));
-                zip.file(`${g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim()}.pdf`, normalizedBytes);
-                // ----------------
+                const pdfBytesOut = await doc.save();
+                // Lo mandamos de forma nativa a JSZip
+                zip.file(`${g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim()}.pdf`, pdfBytesOut);
             }
             
             const content = await zip.generateAsync({type:"blob"});
