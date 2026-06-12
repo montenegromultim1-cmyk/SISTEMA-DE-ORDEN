@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador PDF - Debug Mode</title>
+    <title>Organizador PDF - Versión 1.8</title>
     
-    <!-- Librerías desde CDNJS (Más estables) -->
+    <!-- Librerías desde CDNJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -125,7 +125,7 @@
 
 <header>
     <h1>📄 Organizador PDF</h1>
-    <div style="font-size: 0.9rem; color: #6b7280;">Debug Mode</div>
+    <div style="font-size: 0.9rem; color: #6b7280;">Versión 1.8</div>
 </header>
 
 <main>
@@ -189,7 +189,7 @@
 </div>
 
 <script>
-    // 1. Configuración Worker PDF.js (Crucial)
+    // 1. Configuración Worker PDF.js
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
     const state = {
@@ -206,33 +206,26 @@
     const viewer = document.getElementById('viewer-container');
     const canvas = document.getElementById('preview-canvas');
 
-    // 2. Verificación de librerías al cargar
     window.onload = function() {
-        if (typeof PDFLib === 'undefined') {
-            alert("CRÍTICO: La librería PDF-lib no se cargó. Revisa tu conexión a internet o si usas un bloqueador de anuncios.");
-        }
-        if (typeof JSZip === 'undefined') {
-            alert("CRÍTICO: La librería JSZip no se cargó.");
-        }
+        if (typeof PDFLib === 'undefined') alert("CRÍTICO: La librería PDF-lib no se cargó.");
+        if (typeof JSZip === 'undefined') alert("CRÍTICO: La librería JSZip no se cargó.");
     };
 
-    // 3. Carga PDF
     filePdf.onchange = (e) => { if(e.target.files.length) loadPdf(e.target.files[0]); };
-    document.getElementById('drop-pdf').ondrop = (e) => {
-        e.preventDefault(); if(e.dataTransfer.files.length) loadPdf(e.dataTransfer.files[0]);
-    };
+    document.getElementById('drop-pdf').ondrop = (e) => { e.preventDefault(); if(e.dataTransfer.files.length) loadPdf(e.dataTransfer.files[0]); };
     document.getElementById('drop-pdf').ondragover = (e) => e.preventDefault();
 
     async function loadPdf(file) {
         try {
             const buffer = await file.arrayBuffer();
-            state.pdfBytes = buffer;
-            const loadingTask = pdfjsLib.getDocument(buffer);
+            state.pdfBytes = buffer.slice(0); 
+            const loadingTask = pdfjsLib.getDocument(state.pdfBytes);
             state.pdfDoc = await loadingTask.promise;
             state.totalPages = state.pdfDoc.numPages;
             showToast(`${state.totalPages} páginas cargadas.`);
             renderGrid();
         } catch (err) {
+            console.error(err);
             alert("Error al leer el archivo PDF: " + err.message);
         }
     }
@@ -359,9 +352,8 @@
     }
     function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
 
-    // 7. Descargas CORREGIDAS (Aplicando fix de Detached ArrayBuffer)
+    // 7. Descargas VERSIÓN 1.8 (FIX ARRAY.FROM)
     
-    // Función helper segura para descargar
     function forceDownload(blob, filename) {
         try {
             const url = window.URL.createObjectURL(blob);
@@ -371,8 +363,6 @@
             a.download = filename;
             document.body.appendChild(a);
             a.click();
-            
-            // Revocamos la URL después de un pequeño delay para asegurar que el navegador inicie la descarga
             setTimeout(() => {
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
@@ -396,14 +386,17 @@
             const c = await doc.copyPages(src, g.pages);
             c.forEach(p=>doc.addPage(p));
             
-            // --- INICIO CORRECCIÓN ---
+            // --- FIX V1.8: Normalización de memoria con Array.from ---
             const pdfBytes = await doc.save(); // Uint8Array
-            // Creamos una copia segura para evitar el error "detached ArrayBuffer"
-            const pdfBytesCopy = pdfBytes.slice(); 
-            // --- FIN CORRECCIÓN ---
-
-            const blob = new Blob([pdfBytesCopy], {type: 'application/pdf'});
             
+            // Convertimos a Array estándar y luego a Uint8Array nuevo.
+            // Esto fuerza una reasignación de memoria limpia.
+            const normalizedBytes = new Uint8Array(Array.from(pdfBytes));
+            
+            // Creamos el blob pasando el Uint8Array (vista), no el buffer directo
+            const blob = new Blob([normalizedBytes], {type: 'application/pdf'});
+            // ---------------------------------------------------------
+
             forceDownload(blob, `${g.name}.pdf`);
             showToast('Descargando...');
             
@@ -425,7 +418,6 @@
             const zip = new JSZip();
             const {PDFDocument} = PDFLib;
             
-            // Cargamos el documento fuente FUERA del bucle para eficiencia
             const src = await PDFDocument.load(state.pdfBytes);
             
             for(const g of state.groups) {
@@ -433,14 +425,12 @@
                 const c = await doc.copyPages(src, g.pages);
                 c.forEach(p=>doc.addPage(p));
                 
-                // --- INICIO CORRECCIÓN ---
                 const pdfBytes = await doc.save();
-                // Clonamos los datos antes de agregarlos al ZIP para evitar errores de memoria
-                const pdfBytesCopy = pdfBytes.slice();
-                // --- FIN CORRECCIÓN ---
 
-                const safeName = g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim();
-                zip.file(`${safeName}.pdf`, pdfBytesCopy);
+                // --- FIX V1.8 ---
+                const normalizedBytes = new Uint8Array(Array.from(pdfBytes));
+                zip.file(`${g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim()}.pdf`, normalizedBytes);
+                // ----------------
             }
             
             const content = await zip.generateAsync({type:"blob"});
