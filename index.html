@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador PDF - Selección Rápida</title>
+    <title>Organizador PDF - Descarga Arreglada</title>
     
-    <!-- Librerías necesarias -->
+    <!-- Librerías necesarias (CDN confiables) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -69,11 +69,10 @@
         .workspace { flex: 1; padding: 2rem; overflow-y: auto; background-color: #e5e5f7; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; position: relative; }
         #pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1.5rem; padding-bottom: 100px; }
         
-        /* Tarjeta de Página */
         .page-card { 
             background: white; padding: 0; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
             cursor: pointer; border: 2px solid transparent; user-select: none; transition: all 0.2s; 
-            position: relative; overflow: hidden; /* Para el botón ojo */
+            position: relative; overflow: hidden; 
         }
         .page-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); border-color: #93c5fd; }
         .page-card.selected { border-color: var(--selected-border); background-color: var(--selected); }
@@ -81,7 +80,7 @@
         .page-card canvas { width: 100%; height: auto; display: block; pointer-events: none; border-bottom: 1px solid #eee; }
         .page-number { text-align: center; padding: 0.5rem; font-size: 0.8rem; font-weight: 600; color: #555; }
 
-        /* Botón Ojo (Preview) */
+        /* Botón Ojo */
         .eye-btn {
             position: absolute; top: 8px; right: 8px;
             width: 32px; height: 32px;
@@ -89,10 +88,7 @@
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 10;
-            cursor: pointer;
-            opacity: 0.9;
-            transition: transform 0.2s, opacity 0.2s;
+            z-index: 10; cursor: pointer; opacity: 0.9;
         }
         .eye-btn:hover { transform: scale(1.1); opacity: 1; background: #f0f9ff; }
         .eye-btn svg { width: 18px; height: 18px; stroke: #374151; }
@@ -112,14 +108,12 @@
         .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 1rem; }
 
         .modal-viewer {
-            flex: 1; position: relative; background: #374151; overflow: hidden;
-            cursor: grab;
+            flex: 1; position: relative; background: #374151; overflow: hidden; cursor: grab;
         }
         .modal-viewer.grabbing { cursor: grabbing; }
 
         #pdf-wrapper {
-            position: absolute;
-            top: 50%; left: 50%;
+            position: absolute; top: 50%; left: 50%;
             transform-origin: center center;
             box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             transition: transform 0.1s linear; 
@@ -127,7 +121,6 @@
 
         #preview-canvas { display: block; background: white; }
 
-        /* Botones Modal */
         .nav-btn { background: rgba(255,255,255,0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
         
@@ -235,7 +228,29 @@
     const viewer = document.getElementById('viewer-container');
     const canvas = document.getElementById('preview-canvas');
 
-    // --- 2. CARGA PDF ---
+    // --- 2. FUNCION DE DESCARGA ROBUSTA (FIX GITHUB PAGES) ---
+    // Esta función asegura que el enlace se adjunte al DOM antes de hacer clic,
+    // evitando bloqueos del navegador en sitios estáticos.
+    function forceDownload(blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        
+        // Importante: Adjuntar al cuerpo del documento
+        document.body.appendChild(a);
+        
+        a.click();
+        
+        // Limpieza
+        window.URL.revokeObjectURL(url);
+        setTimeout(() => {
+            document.body.removeChild(a);
+        }, 100);
+    }
+
+    // --- 3. CARGA PDF ---
 
     filePdf.onchange = (e) => { if(e.target.files.length) loadPdf(e.target.files[0]); };
     document.getElementById('drop-pdf').ondrop = (e) => {
@@ -244,16 +259,21 @@
     document.getElementById('drop-pdf').ondragover = (e) => e.preventDefault();
 
     async function loadPdf(file) {
-        const buffer = await file.arrayBuffer();
-        state.pdfBytes = buffer;
-        const loadingTask = pdfjsLib.getDocument(buffer);
-        state.pdfDoc = await loadingTask.promise;
-        state.totalPages = state.pdfDoc.numPages;
-        showToast(`${state.totalPages} páginas cargadas.`);
-        renderGrid();
+        try {
+            const buffer = await file.arrayBuffer();
+            state.pdfBytes = buffer;
+            const loadingTask = pdfjsLib.getDocument(buffer);
+            state.pdfDoc = await loadingTask.promise;
+            state.totalPages = state.pdfDoc.numPages;
+            showToast(`${state.totalPages} páginas cargadas.`);
+            renderGrid();
+        } catch (err) {
+            console.error(err);
+            showToast("Error al cargar PDF");
+        }
     }
 
-    // --- 3. GRID (MINIATURAS) ---
+    // --- 4. GRID (MINIATURAS) ---
 
     async function renderGrid() {
         const grid = document.getElementById('pages-grid');
@@ -271,16 +291,15 @@
             div.className = 'page-card';
             div.dataset.idx = i-1;
             
-            // 1. Botón OJO (Solo abre preview)
+            // Botón OJO
             const eyeBtn = document.createElement('div');
             eyeBtn.className = 'eye-btn';
             eyeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
             eyeBtn.onclick = (e) => {
-                e.stopPropagation(); // Evitar selección del card
+                e.stopPropagation();
                 openModal(i-1);
             };
 
-            // 2. Contenido del Card (Selecciona al hacer clic)
             const numDiv = document.createElement('div');
             numDiv.className = 'page-number';
             numDiv.textContent = `Pág ${i}`;
@@ -289,7 +308,7 @@
             div.appendChild(c);
             div.appendChild(numDiv);
             
-            // Click en el card selecciona la página
+            // Click en el card selecciona
             div.onclick = () => toggleSelection(i-1);
 
             frag.appendChild(div);
@@ -298,7 +317,7 @@
         updateGridVisuals();
     }
 
-    // --- 4. LÓGICA VISOR MODAL (ZOOM/PAN) ---
+    // --- 5. LÓGICA VISOR MODAL (ZOOM/PAN) ---
 
     async function openModal(idx) {
         state.currentIndex = idx;
@@ -357,7 +376,6 @@
         state.scale = s; updateTransform();
     }
 
-    // Zoom Rueda
     viewer.addEventListener('wheel', (e) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
@@ -366,7 +384,6 @@
         state.scale = s; updateTransform();
     }, { passive: false });
 
-    // Pan Arrastrar
     viewer.addEventListener('mousedown', (e) => {
         state.panning = true;
         state.startX = e.clientX - state.translateX;
@@ -387,7 +404,7 @@
         viewer.classList.remove('grabbing');
     });
 
-    // --- 5. LÓGICA DE SELECCIÓN Y GRUPOS ---
+    // --- 6. LÓGICA DE SELECCIÓN Y GRUPOS ---
 
     function toggleSelection(idx) {
         if(state.selectedPages.has(idx)) state.selectedPages.delete(idx);
@@ -396,8 +413,6 @@
         document.getElementById('selected-count').textContent = state.selectedPages.size;
         document.getElementById('btn-group').disabled = state.selectedPages.size === 0;
         updateGridVisuals();
-        
-        // Si el modal está abierto actualizar también su botón
         if(modal.classList.contains('active')) updateModalUI();
     }
 
@@ -445,35 +460,77 @@
 
     function delGroup(id) { state.groups = state.groups.filter(g=>g.id!==id); renderGroupList(); }
 
+    // --- 7. DESCARGAS (CORREGIDAS) ---
+
     async function downOne(id) {
-        const g = state.groups.find(x=>x.id===id);
-        const {PDFDocument} = PDFLib;
-        const doc = await PDFDocument.create();
-        const src = await PDFDocument.load(state.pdfBytes);
-        const c = await doc.copyPages(src, g.pages);
-        c.forEach(p=>doc.addPage(p));
-        const b = await doc.save();
-        const blob = new Blob([b], {type:'application/pdf'});
-        const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${g.name}.pdf`; a.click();
+        try {
+            const g = state.groups.find(x=>x.id===id);
+            if(!g) return;
+
+            const {PDFDocument} = PDFLib;
+            const doc = await PDFDocument.create();
+            const src = await PDFDocument.load(state.pdfBytes);
+            const c = await doc.copyPages(src, g.pages);
+            c.forEach(p=>doc.addPage(p));
+            
+            const pdfBytes = await doc.save();
+            const blob = new Blob([pdfBytes], {type: 'application/pdf'});
+            
+            // Usamos la función robusta
+            forceDownload(blob, `${g.name}.pdf`);
+            showToast('Descargando PDF...');
+            
+        } catch (error) {
+            console.error(error);
+            showToast('Error al generar PDF individual');
+        }
     }
 
     async function downloadAllAsZip() {
-        const zip = new JSZip();
-        const {PDFDocument} = PDFLib;
-        const src = await PDFDocument.load(state.pdfBytes);
-        for(const g of state.groups) {
-            const doc = await PDFDocument.create();
-            const c = await doc.copyPages(src, g.pages);
-            c.forEach(p=>doc.addPage(p));
-            zip.file(`${g.name}.pdf`, await doc.save());
+        try {
+            if(!state.groups.length) return;
+            
+            const btn = document.getElementById('btn-download-all');
+            const oldText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generando...';
+            btn.disabled = true;
+
+            const zip = new JSZip();
+            const {PDFDocument} = PDFLib;
+            const src = await PDFDocument.load(state.pdfBytes);
+            
+            for(const g of state.groups) {
+                const doc = await PDFDocument.create();
+                const c = await doc.copyPages(src, g.pages);
+                c.forEach(p=>doc.addPage(p));
+                const pdfBytes = await doc.save();
+                
+                // Limpiar nombre de archivo
+                const safeName = g.name.replace(/[^a-z0-9áéíóúñ\s]/gi, '_').trim();
+                zip.file(`${safeName}.pdf`, pdfBytes);
+            }
+            
+            const content = await zip.generateAsync({type:"blob"});
+            
+            // Usamos la función robusta
+            forceDownload(content, 'Facturas_Completas.zip');
+            
+            showToast('ZIP descargado correctamente');
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            
+        } catch (error) {
+            console.error(error);
+            showToast('Error al generar ZIP');
+            const btn = document.getElementById('btn-download-all');
+            btn.innerHTML = '📦 Descargar ZIP';
+            btn.disabled = false;
         }
-        const content = await zip.generateAsync({type:"blob"});
-        const a = document.createElement('a'); a.href=URL.createObjectURL(content); a.download='Facturas.zip'; a.click();
     }
 
     function showToast(msg) {
         const t = document.createElement('div');
-        t.style.cssText = "position:fixed; bottom:20px; right:20px; background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:999;";
+        t.style.cssText = "position:fixed; bottom:20px; right:20px; background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:999; font-size:0.9rem;";
         t.textContent = msg; document.body.appendChild(t);
         setTimeout(()=>t.remove(), 3000);
     }
